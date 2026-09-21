@@ -126,20 +126,38 @@ def main():
     all_jobs = {}
 
     for search in config["searches"]:
-        name = search["name"]
+    name = search["name"]
 
-        print(f"\nRecherche : {name}")
+    print(f"\nRecherche : {name}")
 
-        for keyword in search["keywords"]:
-            print(f"  Mot-clé : {keyword}")
+    for keyword in search["keywords"]:
+        for location in search.get("locations", []):
+            departments = get_departments(location)
 
-            jobs = search_jobs(token, keyword)
+            if not departments:
+                print(
+                    f"  Mot-clé : {keyword} | "
+                    f"Localisation : {location} | ignorée pour l'instant"
+                )
+                continue
 
-            print(f"  → {len(jobs)} offres trouvées")
+            for department in departments:
+                print(
+                    f"  Mot-clé : {keyword} | "
+                    f"Département : {department}"
+                )
 
-            for job in jobs:
-                all_jobs[job["id"]] = job
+                jobs = search_jobs(
+                    token,
+                    keyword,
+                    department
+                )
 
+                print(f"    → {len(jobs)} offres trouvées")
+
+                for job in jobs:
+                    all_jobs[job["id"]] = job
+                    
     print(f"\nOffres uniques trouvées : {len(all_jobs)}")
 
     save_jobs(db, all_jobs.values())
