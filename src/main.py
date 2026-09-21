@@ -48,8 +48,22 @@ def search_jobs(token, keywords, department=None):
         params=params
     )
 
-    response.raise_for_status()
-    return response.json().get("resultats", [])
+    if not response.ok:
+        print(
+            f"  ⚠️ Erreur France Travail pour '{keywords}': "
+            f"HTTP {response.status_code}"
+        )
+        return []
+
+    try:
+        data = response.json()
+    except ValueError:
+        print(
+            f"  ⚠️ Réponse non JSON de France Travail pour '{keywords}'"
+        )
+        return []
+
+    return data.get("resultats", [])
 
 
 def initialize_firebase():
