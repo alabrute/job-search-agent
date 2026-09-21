@@ -1,0 +1,33 @@
+{
+  "searches": [
+    {
+      "name": "Supply Chain Planning",
+      "keywords": [
+        "Supply Chain",
+        "Supply Planning",
+        "Demand Planning",
+        "S&OP",
+        "Analyst"
+      ],
+      "locations": [
+        "Strasbourg",
+        "Alsace",
+        "Grand Est",
+        "France",
+        "Remote"
+      ]
+    },
+    {
+      "name": "Kinaxis",
+      "keywords": [
+        "Kinaxis",
+        "RapidResponse",
+        "Maestro"
+      ],
+      "locations": [
+        "France",
+        "Remote"
+      ]
+    }
+  ]
+}
