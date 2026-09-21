@@ -1,6 +1,7 @@
+import json
 import os
-import requests
 
+import requests
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
@@ -8,6 +9,11 @@ from firebase_admin import firestore
 
 TOKEN_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=/partenaire"
 SEARCH_URL = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
+
+
+def load_config():
+    with open("config/searches.json", "r", encoding="utf-8") as file:
+        return json.load(file)
 
 
 def get_token():
@@ -25,30 +31,32 @@ def get_token():
     return response.json()["access_token"]
 
 
-def search_jobs(token):
+def search_jobs(token, keywords, department=None):
+    params = {
+        "motsCles": keywords,
+        "range": "0-49"
+    }
+
+    if department:
+        params["departement"] = department
+
     response = requests.get(
         SEARCH_URL,
         headers={
             "Authorization": f"Bearer {token}"
         },
-        params={
-            "motsCles": "Supply Chain",
-            "departement": "67",
-            "range": "0-49"
-        }
+        params=params
     )
 
     response.raise_for_status()
-    return response.json()
+    return response.json().get("resultats", [])
 
 
 def initialize_firebase():
     service_account = os.environ["FIREBASE_SERVICE_ACCOUNT"]
 
     if not firebase_admin._apps:
-        cred = credentials.Certificate(
-            __import__("json").loads(service_account)
-        )
+        cred = credentials.Certificate(json.loads(service_account))
         firebase_admin.initialize_app(cred)
 
     return firestore.client()
@@ -82,21 +90,37 @@ def save_jobs(db, jobs):
             merge=True
         )
 
-        print(f"Enregistrée : {job.get('intitule')}")
-
 
 def main():
-    print("Recherche France Travail...")
+    print("Chargement de la configuration...")
+
+    config = load_config()
+
+    print(f"{len(config['searches'])} recherches configurées.")
 
     token = get_token()
-    data = search_jobs(token)
-
-    jobs = data.get("resultats", [])
-
-    print(f"Nombre d'offres trouvées : {len(jobs)}")
-
     db = initialize_firebase()
-    save_jobs(db, jobs)
+
+    all_jobs = {}
+
+    for search in config["searches"]:
+        name = search["name"]
+
+        print(f"\nRecherche : {name}")
+
+        for keyword in search["keywords"]:
+            print(f"  Mot-clé : {keyword}")
+
+            jobs = search_jobs(token, keyword)
+
+            print(f"  → {len(jobs)} offres trouvées")
+
+            for job in jobs:
+                all_jobs[job["id"]] = job
+
+    print(f"\nOffres uniques trouvées : {len(all_jobs)}")
+
+    save_jobs(db, all_jobs.values())
 
     print("Import Firebase terminé.")
 
