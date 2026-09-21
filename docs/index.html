@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Job Search Agent</title>
+
+    <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px;
+            background: #f5f6f8;
+            color: #222;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input,
+        select {
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+
+        .count {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        .job {
+            background: white;
+            padding: 20px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+
+        .job h2 {
+            margin: 0 0 8px;
+            font-size: 19px;
+        }
+
+        .job-info {
+            color: #555;
+            margin-bottom: 10px;
+        }
+
+        .tags {
+            margin: 10px 0;
+        }
+
+        .tag {
+            display: inline-block;
+            background: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .job a {
+            display: inline-block;
+            margin-top: 8px;
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            background: #222;
+            color: white;
+        }
+
+        .loading {
+            color: #666;
+        }
+
+        @media (max-width: 700px) {
+            .filters {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Job Search Agent</h1>
+
+    <div class="subtitle">
+        Offres d'emploi collectées automatiquement
+    </div>
+
+    <div class="filters">
+        <input
+            type="text"
+            id="searchInput"
+            placeholder="Rechercher une offre..."
+        >
+
+        <select id="searchFilter">
+            <option value="">Toutes les recherches</option>
+        </select>
+
+        <select id="locationFilter">
+            <option value="">Toutes les localisations</option>
+        </select>
+    </div>
+
+    <div class="count" id="count">
+        Chargement...
+    </div>
+
+    <div id="jobs">
+        <div class="loading">
+            Chargement des offres...
+        </div>
+    </div>
+
+    <script>
+
+        /*
+         * Configuration Firebase
+         *
+         * À remplacer avec la configuration
+         * de ton application Firebase Web.
+         */
+
+        const firebaseConfig = {
+            apiKey: "A_REMPLACER",
+            authDomain: "A_REMPLACER",
+            projectId: "job-search-agent-b441a",
+            storageBucket: "A_REMPLACER",
+            messagingSenderId: "A_REMPLACER",
+            appId: "A_REMPLACER"
+        };
+
+
+        firebase.initializeApp(firebaseConfig);
+
+        const db = firebase.firestore();
+
+        let allJobs = [];
+
+
+        async function loadJobs() {
+
+            try {
+
+                const snapshot = await db
+                    .collection("jobs")
+                    .get();
+
+                allJobs = [];
+
+                snapshot.forEach(doc => {
+
+                    allJobs.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+
+                });
+
+                allJobs.sort((a, b) => {
+
+                    const dateA = new Date(a.published_at || 0);
+                    const dateB = new Date(b.published_at || 0);
+
+                    return dateB - dateA;
+
+                });
+
+                populateFilters();
+
+                renderJobs();
+
+            } catch (error) {
+
+                console.error(error);
+
+                document.getElementById("jobs").innerHTML =
+                    "<p>Erreur lors du chargement des offres.</p>";
+
+            }
+
+        }
+
+
+        function populateFilters() {
+
+            const searches = new Set();
+            const locations = new Set();
+
+            allJobs.forEach(job => {
+
+                (job.searches || []).forEach(search => {
+                    searches.add(search);
+                });
+
+                if (job.location) {
+                    locations.add(job.location);
+                }
+
+            });
+
+
+            const searchFilter =
+                document.getElementById("searchFilter");
+
+            [...searches]
+                .sort()
+                .forEach(search => {
+
+                    const option = document.createElement("option");
+
+                    option.value = search;
+                    option.textContent = search;
+
+                    searchFilter.appendChild(option);
+
+                });
+
+
+            const locationFilter =
+                document.getElementById("locationFilter");
+
+            [...locations]
+                .sort()
+                .forEach(location => {
+
+                    const option = document.createElement("option");
+
+                    option.value = location;
+                    option.textContent = location;
+
+                    locationFilter.appendChild(option);
+
+                });
+
+        }
+
+
+        function renderJobs() {
+
+            const searchText =
+                document
+                    .getElementById("searchInput")
+                    .value
+                    .toLowerCase();
+
+            const selectedSearch =
+                document
+                    .getElementById("searchFilter")
+                    .value;
+
+            const selectedLocation =
+                document
+                    .getElementById("locationFilter")
+                    .value;
+
+
+            const filtered = allJobs.filter(job => {
+
+                const text =
+                    `${job.title || ""} ${job.company || ""} ${job.description || ""}`
+                    .toLowerCase();
+
+                const matchesText =
+                    !searchText ||
+                    text.includes(searchText);
+
+                const matchesSearch =
+                    !selectedSearch ||
+                    (job.searches || []).includes(selectedSearch);
+
+                const matchesLocation =
+                    !selectedLocation ||
+                    job.location === selectedLocation;
+
+                return (
+                    matchesText &&
+                    matchesSearch &&
+                    matchesLocation
+                );
+
+            });
+
+
+            document.getElementById("count").textContent =
+                `${filtered.length} offre(s)`;
+
+
+            const container =
+                document.getElementById("jobs");
+
+            container.innerHTML = "";
+
+
+            filtered.forEach(job => {
+
+                const div =
+                    document.createElement("div");
+
+                div.className = "job";
+
+
+                const date =
+                    job.published_at
+                        ? new Date(job.published_at)
+                            .toLocaleDateString("fr-FR")
+                        : "";
+
+
+                const searches =
+                    (job.searches || [])
+                        .map(search =>
+                            `<span class="tag">${escapeHtml(search)}</span>`
+                        )
+                        .join("");
+
+
+                div.innerHTML = `
+
+                    <h2>
+                        ${escapeHtml(job.title || "Sans titre")}
+                    </h2>
+
+                    <div class="job-info">
+                        ${escapeHtml(job.company || "Entreprise inconnue")}
+                        ·
+                        ${escapeHtml(job.location || "Localisation inconnue")}
+                        ${date ? "· " + date : ""}
+                    </div>
+
+                    <div class="tags">
+                        ${searches}
+                    </div>
+
+                    ${
+                        job.url
+                            ? `<a href="${job.url}"
+                                  target="_blank"
+                                  rel="noopener noreferrer">
+                                  Voir l'offre
+                               </a>`
+                            : ""
+                    }
+
+                `;
+
+                container.appendChild(div);
+
+            });
+
+        }
+
+
+        function escapeHtml(value) {
+
+            return String(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+
+        }
+
+
+        document
+            .getElementById("searchInput")
+            .addEventListener("input", renderJobs);
+
+        document
+            .getElementById("searchFilter")
+            .addEventListener("change", renderJobs);
+
+        document
+            .getElementById("locationFilter")
+            .addEventListener("change", renderJobs);
+
+
+        loadJobs();
+
+    </script>
+
+</body>
+</html>
