@@ -33,8 +33,7 @@ def get_token():
 def get_departments(location):
     mapping = {
         "Strasbourg": ["67"],
-        "Alsace": ["67", "68"],
-        ]
+        "Alsace": ["67", "68"]
     }
 
     return mapping.get(location)
