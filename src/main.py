@@ -110,7 +110,11 @@ def save_jobs(db, jobs):
             "contract_label": job.get("typeContratLibelle"),
             "published_at": job.get("dateCreation"),
             "url": job.get("origineOffre", {}).get("urlOrigine"),
-            "updated_at": firestore.SERVER_TIMESTAMP
+            "updated_at": firestore.SERVER_TIMESTAMP,
+
+            # Informations sur la recherche
+            "searches": job.get("_searches", []),
+            "keywords": job.get("_keywords", [])
         }
 
         collection.document(job_id).set(
@@ -165,10 +169,24 @@ def main():
                     )
 
                     for job in jobs:
-                        job_id = job.get("id")
+    job_id = job.get("id")
 
-                        if job_id:
-                            all_jobs[job_id] = job
+    if not job_id:
+        continue
+
+    if "_searches" not in job:
+        job["_searches"] = []
+
+    if "_keywords" not in job:
+        job["_keywords"] = []
+
+    if name not in job["_searches"]:
+        job["_searches"].append(name)
+
+    if keyword not in job["_keywords"]:
+        job["_keywords"].append(keyword)
+
+    all_jobs[job_id] = job
 
     print(
         f"\nOffres uniques trouvées : {len(all_jobs)}"
