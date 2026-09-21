@@ -30,6 +30,14 @@ def get_token():
     response.raise_for_status()
     return response.json()["access_token"]
 
+def get_departments(location):
+    mapping = {
+        "Strasbourg": ["67"],
+        "Alsace": ["67", "68"],
+        ]
+    }
+
+    return mapping.get(location)
 
 def search_jobs(token, keywords, department=None):
     params = {
