@@ -30,13 +30,20 @@ def get_token():
     response.raise_for_status()
     return response.json()["access_token"]
 
+
 def get_departments(location):
     mapping = {
         "Strasbourg": ["67"],
-        "Alsace": ["67", "68"]
+        "Alsace": ["67", "68"],
+        "Grand Est": [
+            "08", "10", "51", "52",
+            "54", "55", "57",
+            "67", "68", "88"
+        ]
     }
 
     return mapping.get(location)
+
 
 def search_jobs(token, keywords, department=None):
     params = {
@@ -125,39 +132,47 @@ def main():
     all_jobs = {}
 
     for search in config["searches"]:
-    name = search["name"]
+        name = search["name"]
 
-    print(f"\nRecherche : {name}")
+        print(f"\nRecherche : {name}")
 
-    for keyword in search["keywords"]:
-        for location in search.get("locations", []):
-            departments = get_departments(location)
+        for keyword in search["keywords"]:
+            for location in search.get("locations", []):
+                departments = get_departments(location)
 
-            if not departments:
-                print(
-                    f"  Mot-clé : {keyword} | "
-                    f"Localisation : {location} | ignorée pour l'instant"
-                )
-                continue
+                if not departments:
+                    print(
+                        f"  Mot-clé : {keyword} | "
+                        f"Localisation : {location} | "
+                        f"ignorée pour l'instant"
+                    )
+                    continue
 
-            for department in departments:
-                print(
-                    f"  Mot-clé : {keyword} | "
-                    f"Département : {department}"
-                )
+                for department in departments:
+                    print(
+                        f"  Mot-clé : {keyword} | "
+                        f"Département : {department}"
+                    )
 
-                jobs = search_jobs(
-                    token,
-                    keyword,
-                    department
-                )
+                    jobs = search_jobs(
+                        token,
+                        keyword,
+                        department
+                    )
 
-                print(f"    → {len(jobs)} offres trouvées")
+                    print(
+                        f"    → {len(jobs)} offres trouvées"
+                    )
 
-                for job in jobs:
-                    all_jobs[job["id"]] = job
-                    
-    print(f"\nOffres uniques trouvées : {len(all_jobs)}")
+                    for job in jobs:
+                        job_id = job.get("id")
+
+                        if job_id:
+                            all_jobs[job_id] = job
+
+    print(
+        f"\nOffres uniques trouvées : {len(all_jobs)}"
+    )
 
     save_jobs(db, all_jobs.values())
 
