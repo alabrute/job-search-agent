@@ -1,3 +1,4 @@
+```python
 import json
 import os
 import re
@@ -9,16 +10,27 @@ from firebase_admin import credentials
 from firebase_admin import firestore
 
 
-TOKEN_URL = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=/partenaire"
-FRANCE_TRAVAIL_SEARCH_URL = (
-    "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
+TOKEN_URL = (
+    "https://entreprise.francetravail.fr/connexion/"
+    "oauth2/access_token?realm=/partenaire"
 )
 
-ADZUNA_SEARCH_URL = "https://api.adzuna.com/v1/api/jobs/fr/search/1"
+FRANCE_TRAVAIL_SEARCH_URL = (
+    "https://api.francetravail.io/"
+    "partenaire/offresdemploi/v2/offres/search"
+)
+
+ADZUNA_SEARCH_URL = (
+    "https://api.adzuna.com/v1/api/jobs/fr/search/1"
+)
 
 
 def load_config():
-    with open("config/searches.json", "r", encoding="utf-8") as file:
+    with open(
+        "config/searches.json",
+        "r",
+        encoding="utf-8"
+    ) as file:
         return json.load(file)
 
 
@@ -32,17 +44,34 @@ def normalize_text(value):
 
     value = str(value).lower()
 
-    value = unicodedata.normalize("NFD", value)
+    value = unicodedata.normalize(
+        "NFD",
+        value
+    )
+
     value = "".join(
-        char for char in value
+        char
+        for char in value
         if unicodedata.category(char) != "Mn"
     )
 
-    value = re.sub(r"\b(h/f|f/h|hf|fh)\b", "", value)
+    value = re.sub(
+        r"\b(h/f|f/h|hf|fh)\b",
+        "",
+        value
+    )
 
-    value = re.sub(r"[^a-z0-9]+", " ", value)
+    value = re.sub(
+        r"[^a-z0-9]+",
+        " ",
+        value
+    )
 
-    value = re.sub(r"\s+", " ", value).strip()
+    value = re.sub(
+        r"\s+",
+        " ",
+        value
+    ).strip()
 
     return value
 
@@ -67,13 +96,15 @@ def normalize_company(value):
             value
         )
 
-    return re.sub(r"\s+", " ", value).strip()
+    return re.sub(
+        r"\s+",
+        " ",
+        value
+    ).strip()
 
 
 def normalize_title(value):
-    value = normalize_text(value)
-
-    return value
+    return normalize_text(value)
 
 
 def normalize_city(value):
@@ -82,19 +113,29 @@ def normalize_city(value):
 
     value = normalize_text(value)
 
-    # Quelques variantes fréquentes autour de Strasbourg
     replacements = {
         "strasbourg cedex": "strasbourg",
         "strasbourg": "strasbourg",
     }
 
-    return replacements.get(value, value)
+    return replacements.get(
+        value,
+        value
+    )
 
 
 def deduplication_key(job):
-    company = normalize_company(job.get("company"))
-    title = normalize_title(job.get("title"))
-    city = normalize_city(job.get("city"))
+    company = normalize_company(
+        job.get("company")
+    )
+
+    title = normalize_title(
+        job.get("title")
+    )
+
+    city = normalize_city(
+        job.get("city")
+    )
 
     return f"{company}|{title}|{city}"
 
@@ -109,9 +150,16 @@ def get_france_travail_token():
         TOKEN_URL,
         data={
             "grant_type": "client_credentials",
-            "client_id": os.environ["FRANCE_TRAVAIL_CLIENT_ID"],
-            "client_secret": os.environ["FRANCE_TRAVAIL_CLIENT_SECRET"],
-            "scope": "api_offresdemploiv2 o2dsoffre"
+            "client_id": os.environ[
+                "FRANCE_TRAVAIL_CLIENT_ID"
+            ],
+            "client_secret": os.environ[
+                "FRANCE_TRAVAIL_CLIENT_SECRET"
+            ],
+            "scope": (
+                "api_offresdemploiv2 "
+                "o2dsoffre"
+            )
         }
     )
 
@@ -120,7 +168,11 @@ def get_france_travail_token():
     return response.json()["access_token"]
 
 
-def search_france_travail(token, keywords, department="67"):
+def search_france_travail(
+    token,
+    keywords,
+    department="67"
+):
 
     params = {
         "motsCles": keywords,
@@ -131,7 +183,9 @@ def search_france_travail(token, keywords, department="67"):
     response = requests.get(
         FRANCE_TRAVAIL_SEARCH_URL,
         headers={
-            "Authorization": f"Bearer {token}"
+            "Authorization": (
+                f"Bearer {token}"
+            )
         },
         params=params
     )
@@ -140,18 +194,21 @@ def search_france_travail(token, keywords, department="67"):
 
         print(
             f"  ⚠️ France Travail : HTTP "
-            f"{response.status_code} pour '{keywords}'"
+            f"{response.status_code} "
+            f"pour '{keywords}'"
         )
 
         return []
 
     try:
+
         data = response.json()
 
     except ValueError:
 
         print(
-            f"  ⚠️ France Travail : réponse non JSON "
+            f"  ⚠️ France Travail : "
+            f"réponse non JSON "
             f"pour '{keywords}'"
         )
 
@@ -159,31 +216,50 @@ def search_france_travail(token, keywords, department="67"):
 
     jobs = []
 
-    for job in data.get("resultats", []):
+    for job in data.get(
+        "resultats",
+        []
+    ):
 
-        lieu = job.get("lieuTravail", {})
+        lieu = job.get(
+            "lieuTravail",
+            {}
+        )
 
         jobs.append({
 
             "source": "france_travail",
 
-            "source_id": job.get("id"),
+            "source_id": job.get(
+                "id"
+            ),
 
-            "title": job.get("intitule"),
+            "title": job.get(
+                "intitule"
+            ),
 
-            "description": job.get("description"),
+            "description": job.get(
+                "description"
+            ),
 
             "company": job.get(
-                "entreprise", {}
+                "entreprise",
+                {}
             ).get("nom"),
 
-            "location": lieu.get("libelle"),
+            "location": lieu.get(
+                "libelle"
+            ),
 
-            "city": lieu.get("libelle"),
+            "city": lieu.get(
+                "libelle"
+            ),
 
             "department": "67",
 
-            "contract": job.get("typeContrat"),
+            "contract": job.get(
+                "typeContrat"
+            ),
 
             "contract_label": job.get(
                 "typeContratLibelle"
@@ -194,7 +270,8 @@ def search_france_travail(token, keywords, department="67"):
             ),
 
             "url": job.get(
-                "origineOffre", {}
+                "origineOffre",
+                {}
             ).get("urlOrigine"),
 
         })
@@ -208,8 +285,13 @@ def search_france_travail(token, keywords, department="67"):
 
 def search_adzuna(keywords):
 
-    app_id = os.environ["ADZUNA_APP_ID"]
-    app_key = os.environ["ADZUNA_APP_KEY"]
+    app_id = os.environ[
+        "ADZUNA_APP_ID"
+    ]
+
+    app_key = os.environ[
+        "ADZUNA_APP_KEY"
+    ]
 
     params = {
 
@@ -236,7 +318,8 @@ def search_adzuna(keywords):
 
         print(
             f"  ⚠️ Adzuna : HTTP "
-            f"{response.status_code} pour '{keywords}'"
+            f"{response.status_code} "
+            f"pour '{keywords}'"
         )
 
         return []
@@ -248,7 +331,8 @@ def search_adzuna(keywords):
     except ValueError:
 
         print(
-            f"  ⚠️ Adzuna : réponse non JSON "
+            f"  ⚠️ Adzuna : réponse "
+            f"non JSON "
             f"pour '{keywords}'"
         )
 
@@ -256,24 +340,51 @@ def search_adzuna(keywords):
 
     jobs = []
 
-for job in data.get("results", []):
+    # -----------------------------------------------------
+    # FILTRE DE PERTINENCE
+    # -----------------------------------------------------
 
-    title = job.get("title") or ""
-    description = job.get("description") or ""
+    keyword_words = normalize_text(
+        keywords
+    ).split()
 
-    text = normalize_text(
-        f"{title} {description}"
-    )
+    for job in data.get(
+        "results",
+        []
+    ):
 
-    keyword_normalized = normalize_text(keywords)
+        title = job.get(
+            "title"
+        ) or ""
 
-    if keyword_normalized not in text:
-        print(
-            f"    ↳ hors sujet ignoré : {title}"
+        description = job.get(
+            "description"
+        ) or ""
+
+        text = normalize_text(
+            f"{title} {description}"
         )
-        continue
 
-    location = job.get("location", {})
+        # Tous les mots du mot-clé doivent apparaître
+        # dans le titre ou la description.
+        is_relevant = all(
+            word in text
+            for word in keyword_words
+        )
+
+        if not is_relevant:
+
+            print(
+                f"    ↳ hors sujet ignoré : "
+                f"{title}"
+            )
+
+            continue
+
+        location = job.get(
+            "location",
+            {}
+        )
 
         area = location.get(
             "area",
@@ -283,7 +394,6 @@ for job in data.get("results", []):
         city = ""
 
         if area:
-
             city = area[-1]
 
         jobs.append({
@@ -303,10 +413,15 @@ for job in data.get("results", []):
             ),
 
             "company": job.get(
-                "company", {}
-            ).get("display_name"),
+                "company",
+                {}
+            ).get(
+                "display_name"
+            ),
 
-            "location": ", ".join(area),
+            "location": ", ".join(
+                area
+            ),
 
             "city": city,
 
@@ -346,7 +461,9 @@ def initialize_firebase():
     if not firebase_admin._apps:
 
         cred = credentials.Certificate(
-            json.loads(service_account)
+            json.loads(
+                service_account
+            )
         )
 
         firebase_admin.initialize_app(
@@ -356,19 +473,31 @@ def initialize_firebase():
     return firestore.client()
 
 
-def save_jobs(db, jobs):
+def save_jobs(
+    db,
+    jobs
+):
 
-    collection = db.collection("jobs")
+    collection = db.collection(
+        "jobs"
+    )
 
     for job in jobs:
 
-        source = job.get("source")
-        source_id = job.get("source_id")
+        source = job.get(
+            "source"
+        )
+
+        source_id = job.get(
+            "source_id"
+        )
 
         if not source_id:
             continue
 
-        document_id = f"{source}_{source_id}"
+        document_id = (
+            f"{source}_{source_id}"
+        )
 
         document = {
 
@@ -376,7 +505,9 @@ def save_jobs(db, jobs):
 
             "source_id": source_id,
 
-            "title": job.get("title"),
+            "title": job.get(
+                "title"
+            ),
 
             "description": job.get(
                 "description"
@@ -422,11 +553,13 @@ def save_jobs(db, jobs):
                 []
             ),
 
-            "deduplication_key":
-                deduplication_key(job),
+            "deduplication_key": (
+                deduplication_key(job)
+            ),
 
-            "updated_at":
+            "updated_at": (
                 firestore.SERVER_TIMESTAMP
+            )
 
         }
 
@@ -451,7 +584,8 @@ def main():
     config = load_config()
 
     print(
-        f"{len(config['searches'])} recherches configurées."
+        f"{len(config['searches'])} "
+        f"recherches configurées."
     )
 
     db = initialize_firebase()
@@ -462,19 +596,27 @@ def main():
     # FRANCE TRAVAIL
     # -----------------------------------------------------
 
-    print("\n=== FRANCE TRAVAIL ===")
+    print(
+        "\n=== FRANCE TRAVAIL ==="
+    )
 
     token = get_france_travail_token()
 
-    for search in config["searches"]:
+    for search in config[
+        "searches"
+    ]:
 
-        name = search["name"]
+        name = search[
+            "name"
+        ]
 
         print(
             f"\nRecherche : {name}"
         )
 
-        for keyword in search["keywords"]:
+        for keyword in search[
+            "keywords"
+        ]:
 
             print(
                 f"  Mot-clé : {keyword}"
@@ -487,16 +629,23 @@ def main():
             )
 
             print(
-                f"    → {len(jobs)} offres trouvées"
+                f"    → {len(jobs)} "
+                f"offres trouvées"
             )
 
             for job in jobs:
 
-                job["_searches"] = [name]
+                job[
+                    "_searches"
+                ] = [name]
 
-                job["_keywords"] = [keyword]
+                job[
+                    "_keywords"
+                ] = [keyword]
 
-                key = deduplication_key(job)
+                key = deduplication_key(
+                    job
+                )
 
                 if key not in all_jobs:
 
@@ -504,9 +653,13 @@ def main():
 
                 else:
 
-                    existing = all_jobs[key]
+                    existing = (
+                        all_jobs[key]
+                    )
 
-                    existing["_searches"] = list(
+                    existing[
+                        "_searches"
+                    ] = list(
                         set(
                             existing.get(
                                 "_searches",
@@ -516,7 +669,9 @@ def main():
                         )
                     )
 
-                    existing["_keywords"] = list(
+                    existing[
+                        "_keywords"
+                    ] = list(
                         set(
                             existing.get(
                                 "_keywords",
@@ -530,17 +685,25 @@ def main():
     # ADZUNA
     # -----------------------------------------------------
 
-    print("\n=== ADZUNA ===")
+    print(
+        "\n=== ADZUNA ==="
+    )
 
-    for search in config["searches"]:
+    for search in config[
+        "searches"
+    ]:
 
-        name = search["name"]
+        name = search[
+            "name"
+        ]
 
         print(
             f"\nRecherche : {name}"
         )
 
-        for keyword in search["keywords"]:
+        for keyword in search[
+            "keywords"
+        ]:
 
             print(
                 f"  Mot-clé : {keyword}"
@@ -551,16 +714,23 @@ def main():
             )
 
             print(
-                f"    → {len(jobs)} offres trouvées"
+                f"    → {len(jobs)} "
+                f"offres pertinentes"
             )
 
             for job in jobs:
 
-                job["_searches"] = [name]
+                job[
+                    "_searches"
+                ] = [name]
 
-                job["_keywords"] = [keyword]
+                job[
+                    "_keywords"
+                ] = [keyword]
 
-                key = deduplication_key(job)
+                key = deduplication_key(
+                    job
+                )
 
                 if key in all_jobs:
 
@@ -569,9 +739,13 @@ def main():
                         f"{job.get('title')}"
                     )
 
-                    existing = all_jobs[key]
+                    existing = (
+                        all_jobs[key]
+                    )
 
-                    existing["_searches"] = list(
+                    existing[
+                        "_searches"
+                    ] = list(
                         set(
                             existing.get(
                                 "_searches",
@@ -581,7 +755,9 @@ def main():
                         )
                     )
 
-                    existing["_keywords"] = list(
+                    existing[
+                        "_keywords"
+                    ] = list(
                         set(
                             existing.get(
                                 "_keywords",
@@ -595,6 +771,8 @@ def main():
 
                     all_jobs[key] = job
 
+    # -----------------------------------------------------
+    # SAUVEGARDE
     # -----------------------------------------------------
 
     print(
@@ -614,3 +792,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
+
+**Important :** cette version corrige bien ton erreur d'indentation et le filtre est maintenant exécuté **à l'intérieur** de `search_adzuna()`.
+
+Tu peux remplacer entièrement `src/main.py` par ce code, commit/push, puis relancer le workflow.
