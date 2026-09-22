@@ -256,11 +256,24 @@ def search_adzuna(keywords):
 
     jobs = []
 
-    for job in data.get("results", []):
+for job in data.get("results", []):
 
-        location = job.get(
-            "location", {}
+    title = job.get("title") or ""
+    description = job.get("description") or ""
+
+    text = normalize_text(
+        f"{title} {description}"
+    )
+
+    keyword_normalized = normalize_text(keywords)
+
+    if keyword_normalized not in text:
+        print(
+            f"    ↳ hors sujet ignoré : {title}"
         )
+        continue
+
+    location = job.get("location", {})
 
         area = location.get(
             "area",
