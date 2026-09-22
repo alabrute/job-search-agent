@@ -791,8 +791,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
-
-**Important :** cette version corrige bien ton erreur d'indentation et le filtre est maintenant exécuté **à l'intérieur** de `search_adzuna()`.
-
-Tu peux remplacer entièrement `src/main.py` par ce code, commit/push, puis relancer le workflow.
