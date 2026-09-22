@@ -106,6 +106,7 @@ def save_jobs(db, jobs):
             "description": job.get("description"),
             "company": job.get("entreprise", {}).get("nom"),
             "location": job.get("lieuTravail", {}).get("libelle"),
+            "department": "67",
             "contract": job.get("typeContrat"),
             "contract_label": job.get("typeContratLibelle"),
             "published_at": job.get("dateCreation"),
