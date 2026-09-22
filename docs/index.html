@@ -1,408 +1,461 @@
 <!DOCTYPE html>
+
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Job Search Agent</title>
+```
+<title>Job Search Agent</title>
 
-    <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore-compat.js"></script>
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 30px;
-            background: #f5f6f8;
-            color: #222;
-        }
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 30px;
+        background: #f5f6f8;
+        color: #222;
+    }
 
-        h1 {
-            margin-bottom: 5px;
-        }
+    h1 {
+        margin-bottom: 5px;
+    }
 
-        .subtitle {
-            color: #666;
-            margin-bottom: 25px;
-        }
+    .subtitle {
+        color: #666;
+        margin-bottom: 25px;
+    }
 
+    .filters {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    input,
+    select {
+        padding: 12px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 15px;
+    }
+
+    .count {
+        margin-bottom: 15px;
+        color: #555;
+    }
+
+    .job {
+        background: white;
+        padding: 20px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .job h2 {
+        margin: 0 0 8px;
+        font-size: 19px;
+    }
+
+    .job-info {
+        color: #555;
+        margin-bottom: 10px;
+    }
+
+    .tags {
+        margin: 10px 0;
+    }
+
+    .tag {
+        display: inline-block;
+        background: #eee;
+        padding: 4px 8px;
+        border-radius: 4px;
+        margin-right: 5px;
+        margin-bottom: 5px;
+        font-size: 12px;
+    }
+
+    .job a {
+        display: inline-block;
+        margin-top: 8px;
+        text-decoration: none;
+        padding: 8px 12px;
+        border-radius: 5px;
+        background: #222;
+        color: white;
+    }
+
+    .loading {
+        color: #666;
+    }
+
+    @media (max-width: 700px) {
         .filters {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 20px;
+            grid-template-columns: 1fr;
         }
+    }
+</style>
+```
 
-        input,
-        select {
-            padding: 12px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 15px;
-        }
-
-        .count {
-            margin-bottom: 15px;
-            color: #555;
-        }
-
-        .job {
-            background: white;
-            padding: 20px;
-            margin-bottom: 12px;
-            border-radius: 8px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-        }
-
-        .job h2 {
-            margin: 0 0 8px;
-            font-size: 19px;
-        }
-
-        .job-info {
-            color: #555;
-            margin-bottom: 10px;
-        }
-
-        .tags {
-            margin: 10px 0;
-        }
-
-        .tag {
-            display: inline-block;
-            background: #eee;
-            padding: 4px 8px;
-            border-radius: 4px;
-            margin-right: 5px;
-            margin-bottom: 5px;
-            font-size: 12px;
-        }
-
-        .job a {
-            display: inline-block;
-            margin-top: 8px;
-            text-decoration: none;
-            padding: 8px 12px;
-            border-radius: 5px;
-            background: #222;
-            color: white;
-        }
-
-        .loading {
-            color: #666;
-        }
-
-        @media (max-width: 700px) {
-            .filters {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
 </head>
 
 <body>
 
-    <h1>Job Search Agent</h1>
+```
+<h1>Job Search Agent</h1>
 
-    <div class="subtitle">
-        Offres d'emploi collectées automatiquement
+<div class="subtitle">
+    Offres d'emploi dans le Bas-Rhin · triées par date de publication
+</div>
+
+<div class="filters">
+    <input
+        type="text"
+        id="searchInput"
+        placeholder="Rechercher une offre..."
+    >
+
+    <select id="searchFilter">
+        <option value="">Toutes les recherches</option>
+    </select>
+
+    <select id="locationFilter">
+        <option value="">Toutes les localisations</option>
+    </select>
+</div>
+
+<div class="count" id="count">
+    Chargement...
+</div>
+
+<div id="jobs">
+    <div class="loading">
+        Chargement des offres...
     </div>
+</div>
 
-    <div class="filters">
-        <input
-            type="text"
-            id="searchInput"
-            placeholder="Rechercher une offre..."
-        >
+<script>
 
-        <select id="searchFilter">
-            <option value="">Toutes les recherches</option>
-        </select>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBf0WKIBHkmmm2P3inbv8vHq8tELwlAxhs",
+        authDomain: "job-search-agent-b441a.firebaseapp.com",
+        projectId: "job-search-agent-b441a",
+        storageBucket: "job-search-agent-b441a.firebasestorage.app",
+        messagingSenderId: "23474552582",
+        appId: "1:23474552582:web:ba336e5a5fe3cde619e887",
+    };
 
-        <select id="locationFilter">
-            <option value="">Toutes les localisations</option>
-        </select>
-    </div>
+    firebase.initializeApp(firebaseConfig);
 
-    <div class="count" id="count">
-        Chargement...
-    </div>
+    const db = firebase.firestore();
 
-    <div id="jobs">
-        <div class="loading">
-            Chargement des offres...
-        </div>
-    </div>
-
-    <script>
-
-        /*
-         * Configuration Firebase
-         *
-         * À remplacer avec la configuration
-         * de ton application Firebase Web.
-         */
-
-       const firebaseConfig = {
-            apiKey: "AIzaSyBf0WKIBHkmmm2P3inbv8vHq8tELwlAxhs",
-            authDomain: "job-search-agent-b441a.firebaseapp.com",
-            projectId: "job-search-agent-b441a",
-            storageBucket: "job-search-agent-b441a.firebasestorage.app",
-            messagingSenderId: "23474552582",
-            appId: "1:23474552582:web:ba336e5a5fe3cde619e887",
-};
+    let allJobs = [];
 
 
-        firebase.initializeApp(firebaseConfig);
+    async function loadJobs() {
 
-        const db = firebase.firestore();
+        try {
 
-        let allJobs = [];
+            const snapshot = await db
+                .collection("jobs")
+                .get();
 
+            allJobs = [];
 
-        async function loadJobs() {
+            snapshot.forEach(doc => {
 
-            try {
+                const job = {
+                    id: doc.id,
+                    ...doc.data()
+                };
 
-                const snapshot = await db
-                    .collection("jobs")
-                    .get();
+                /*
+                 * On ne conserve que les offres du Bas-Rhin.
+                 *
+                 * France Travail retourne généralement une
+                 * localisation sous la forme :
+                 * "Strasbourg"
+                 * "67 - Strasbourg"
+                 * "Bas-Rhin"
+                 * etc.
+                 *
+                 * Pour l'instant, on utilise les informations
+                 * disponibles dans le champ location.
+                 */
 
-                allJobs = [];
+                const location = (job.location || "").toLowerCase();
 
-                snapshot.forEach(doc => {
+                const isBasRhin =
+                    location.includes("67") ||
+                    location.includes("bas-rhin") ||
+                    location.includes("strasbourg") ||
+                    location.includes("schiltigheim") ||
+                    location.includes("illkirch") ||
+                    location.includes("bischheim") ||
+                    location.includes("lingolsheim") ||
+                    location.includes("ostwald") ||
+                    location.includes("hoenheim") ||
+                    location.includes("molsheim") ||
+                    location.includes("haguenau") ||
+                    location.includes("saverne");
 
-                    allJobs.push({
-                        id: doc.id,
-                        ...doc.data()
-                    });
-
-                });
-
-                allJobs.sort((a, b) => {
-
-                    const dateA = new Date(a.published_at || 0);
-                    const dateB = new Date(b.published_at || 0);
-
-                    return dateB - dateA;
-
-                });
-
-                populateFilters();
-
-                renderJobs();
-
-            } catch (error) {
-
-                console.error(error);
-
-                document.getElementById("jobs").innerHTML =
-                    "<p>Erreur lors du chargement des offres.</p>";
-
-            }
-
-        }
-
-
-        function populateFilters() {
-
-            const searches = new Set();
-            const locations = new Set();
-
-            allJobs.forEach(job => {
-
-                (job.searches || []).forEach(search => {
-                    searches.add(search);
-                });
-
-                if (job.location) {
-                    locations.add(job.location);
+                if (isBasRhin) {
+                    allJobs.push(job);
                 }
 
             });
 
 
-            const searchFilter =
-                document.getElementById("searchFilter");
+            /*
+             * Tri du plus récent au plus ancien.
+             */
 
-            [...searches]
-                .sort()
-                .forEach(search => {
+            allJobs.sort((a, b) => {
 
-                    const option = document.createElement("option");
+                const dateA = new Date(a.published_at || 0);
+                const dateB = new Date(b.published_at || 0);
 
-                    option.value = search;
-                    option.textContent = search;
-
-                    searchFilter.appendChild(option);
-
-                });
-
-
-            const locationFilter =
-                document.getElementById("locationFilter");
-
-            [...locations]
-                .sort()
-                .forEach(location => {
-
-                    const option = document.createElement("option");
-
-                    option.value = location;
-                    option.textContent = location;
-
-                    locationFilter.appendChild(option);
-
-                });
-
-        }
-
-
-        function renderJobs() {
-
-            const searchText =
-                document
-                    .getElementById("searchInput")
-                    .value
-                    .toLowerCase();
-
-            const selectedSearch =
-                document
-                    .getElementById("searchFilter")
-                    .value;
-
-            const selectedLocation =
-                document
-                    .getElementById("locationFilter")
-                    .value;
-
-
-            const filtered = allJobs.filter(job => {
-
-                const text =
-                    `${job.title || ""} ${job.company || ""} ${job.description || ""}`
-                    .toLowerCase();
-
-                const matchesText =
-                    !searchText ||
-                    text.includes(searchText);
-
-                const matchesSearch =
-                    !selectedSearch ||
-                    (job.searches || []).includes(selectedSearch);
-
-                const matchesLocation =
-                    !selectedLocation ||
-                    job.location === selectedLocation;
-
-                return (
-                    matchesText &&
-                    matchesSearch &&
-                    matchesLocation
-                );
+                return dateB - dateA;
 
             });
 
 
-            document.getElementById("count").textContent =
-                `${filtered.length} offre(s)`;
+            populateFilters();
+
+            renderJobs();
+
+        } catch (error) {
+
+            console.error(error);
+
+            document.getElementById("jobs").innerHTML =
+                "<p>Erreur lors du chargement des offres.</p>";
+
+        }
+
+    }
 
 
-            const container =
-                document.getElementById("jobs");
+    function populateFilters() {
 
-            container.innerHTML = "";
+        const searches = new Set();
+        const locations = new Set();
 
+        allJobs.forEach(job => {
 
-            filtered.forEach(job => {
+            (job.searches || []).forEach(search => {
+                searches.add(search);
+            });
 
-                const div =
-                    document.createElement("div");
+            if (job.location) {
+                locations.add(job.location);
+            }
 
-                div.className = "job";
-
-
-                const date =
-                    job.published_at
-                        ? new Date(job.published_at)
-                            .toLocaleDateString("fr-FR")
-                        : "";
+        });
 
 
-                const searches =
-                    (job.searches || [])
-                        .map(search =>
-                            `<span class="tag">${escapeHtml(search)}</span>`
-                        )
-                        .join("");
+        const searchFilter =
+            document.getElementById("searchFilter");
 
+        [...searches]
+            .sort()
+            .forEach(search => {
 
-                div.innerHTML = `
+                const option = document.createElement("option");
 
-                    <h2>
-                        ${escapeHtml(job.title || "Sans titre")}
-                    </h2>
+                option.value = search;
+                option.textContent = search;
 
-                    <div class="job-info">
-                        ${escapeHtml(job.company || "Entreprise inconnue")}
-                        ·
-                        ${escapeHtml(job.location || "Localisation inconnue")}
-                        ${date ? "· " + date : ""}
-                    </div>
-
-                    <div class="tags">
-                        ${searches}
-                    </div>
-
-                    ${
-                        job.url
-                            ? `<a href="${job.url}"
-                                  target="_blank"
-                                  rel="noopener noreferrer">
-                                  Voir l'offre
-                               </a>`
-                            : ""
-                    }
-
-                `;
-
-                container.appendChild(div);
+                searchFilter.appendChild(option);
 
             });
 
-        }
+
+        const locationFilter =
+            document.getElementById("locationFilter");
+
+        [...locations]
+            .sort()
+            .forEach(location => {
+
+                const option = document.createElement("option");
+
+                option.value = location;
+                option.textContent = location;
+
+                locationFilter.appendChild(option);
+
+            });
+
+    }
 
 
-        function escapeHtml(value) {
+    function renderJobs() {
 
-            return String(value)
-                .replaceAll("&", "&amp;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll('"', "&quot;")
-                .replaceAll("'", "&#039;");
+        const searchText =
+            document
+                .getElementById("searchInput")
+                .value
+                .toLowerCase();
 
-        }
+        const selectedSearch =
+            document
+                .getElementById("searchFilter")
+                .value;
 
-
-        document
-            .getElementById("searchInput")
-            .addEventListener("input", renderJobs);
-
-        document
-            .getElementById("searchFilter")
-            .addEventListener("change", renderJobs);
-
-        document
-            .getElementById("locationFilter")
-            .addEventListener("change", renderJobs);
+        const selectedLocation =
+            document
+                .getElementById("locationFilter")
+                .value;
 
 
-        loadJobs();
+        const filtered = allJobs.filter(job => {
 
-    </script>
+            const text =
+                `${job.title || ""} ${job.company || ""} ${job.description || ""}`
+                .toLowerCase();
+
+            const matchesText =
+                !searchText ||
+                text.includes(searchText);
+
+            const matchesSearch =
+                !selectedSearch ||
+                (job.searches || []).includes(selectedSearch);
+
+            const matchesLocation =
+                !selectedLocation ||
+                job.location === selectedLocation;
+
+            return (
+                matchesText &&
+                matchesSearch &&
+                matchesLocation
+            );
+
+        });
+
+
+        /*
+         * Sécurité supplémentaire :
+         * on garantit ici aussi le tri par date après filtrage.
+         */
+
+        filtered.sort((a, b) => {
+
+            const dateA = new Date(a.published_at || 0);
+            const dateB = new Date(b.published_at || 0);
+
+            return dateB - dateA;
+
+        });
+
+
+        document.getElementById("count").textContent =
+            `${filtered.length} offre(s)`;
+
+
+        const container =
+            document.getElementById("jobs");
+
+        container.innerHTML = "";
+
+
+        filtered.forEach(job => {
+
+            const div =
+                document.createElement("div");
+
+            div.className = "job";
+
+
+            const date =
+                job.published_at
+                    ? new Date(job.published_at)
+                        .toLocaleDateString("fr-FR")
+                    : "";
+
+
+            const searches =
+                (job.searches || [])
+                    .map(search =>
+                        `<span class="tag">${escapeHtml(search)}</span>`
+                    )
+                    .join("");
+
+
+            div.innerHTML = `
+
+                <h2>
+                    ${escapeHtml(job.title || "Sans titre")}
+                </h2>
+
+                <div class="job-info">
+                    ${escapeHtml(job.company || "Entreprise inconnue")}
+                    ·
+                    ${escapeHtml(job.location || "Localisation inconnue")}
+                    ${date ? "· Publiée le " + date : ""}
+                </div>
+
+                <div class="tags">
+                    ${searches}
+                </div>
+
+                ${
+                    job.url
+                        ? `<a href="${job.url}"
+                              target="_blank"
+                              rel="noopener noreferrer">
+                              Voir l'offre
+                           </a>`
+                        : ""
+                }
+
+            `;
+
+            container.appendChild(div);
+
+        });
+
+    }
+
+
+    function escapeHtml(value) {
+
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+
+    }
+
+
+    document
+        .getElementById("searchInput")
+        .addEventListener("input", renderJobs);
+
+    document
+        .getElementById("searchFilter")
+        .addEventListener("change", renderJobs);
+
+    document
+        .getElementById("locationFilter")
+        .addEventListener("change", renderJobs);
+
+
+    loadJobs();
+
+</script>
+```
 
 </body>
 </html>
