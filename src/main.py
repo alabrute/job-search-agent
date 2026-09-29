@@ -136,7 +136,7 @@ def deduplication_key(job):
 
     return f"{company}|{title}"
 
-     import_timestamp = datetime.now(
+    import_timestamp = datetime.now(
         timezone.utc
     ).isoformat()
 
