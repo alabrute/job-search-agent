@@ -2,12 +2,13 @@ import json
 import os
 import re
 import unicodedata
+from datetime import datetime, timezone
 
 import requests
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
-from datetime import datetime, timezone
+
 
 
 TOKEN_URL = (
@@ -135,7 +136,7 @@ def deduplication_key(job):
 
     return f"{company}|{title}"
 
- import_timestamp = datetime.now(
+     import_timestamp = datetime.now(
         timezone.utc
     ).isoformat()
 
@@ -836,6 +837,21 @@ def main():
     print(
         f"\nOffres uniques : "
         f"{len(all_jobs)}"
+    )
+
+    import_timestamp = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    db.collection(
+        "system"
+    ).document(
+        "status"
+    ).set(
+        {
+            "last_import_at": import_timestamp
+        },
+        merge=True
     )
 
     save_jobs(
