@@ -274,6 +274,7 @@ def search_france_travail(
     return jobs
 
 def is_internship(job):
+
     title = normalize_text(
         job.get("title") or ""
     )
@@ -282,7 +283,20 @@ def is_internship(job):
         job.get("description") or ""
     )
 
-    text = f"{title} {description}"
+    contract_type = normalize_text(
+        job.get("contract_type") or ""
+    )
+
+    contract_time = normalize_text(
+        job.get("contract_time") or ""
+    )
+
+    text = " ".join([
+        title,
+        description,
+        contract_type,
+        contract_time
+    ])
 
     internship_keywords = [
         "stage",
@@ -295,11 +309,13 @@ def is_internship(job):
         "apprenti",
     ]
 
-    return any(
-        keyword in text
-        for keyword in internship_keywords
-    )
+    for keyword in internship_keywords:
 
+        if keyword in text:
+
+            return True
+
+    return False
 # ---------------------------------------------------------
 # ADZUNA
 # ---------------------------------------------------------
