@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 
 import requests
 import firebase_admin
+from bs4 import BeautifulSoup
 from firebase_admin import credentials
 from firebase_admin import firestore
-
 
 
 TOKEN_URL = (
@@ -25,13 +25,28 @@ ADZUNA_SEARCH_URL = (
     "https://api.adzuna.com/v1/api/jobs/fr/search/1"
 )
 
+LINKEDIN_SEARCH_URL = (
+    "https://www.linkedin.com/jobs/search/"
+)
+
+LINKEDIN_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/153.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+}
+
 
 def load_config():
+
     with open(
         "config/searches.json",
         "r",
         encoding="utf-8"
     ) as file:
+
         return json.load(file)
 
 
@@ -40,6 +55,7 @@ def load_config():
 # ---------------------------------------------------------
 
 def normalize_text(value):
+
     if not value:
         return ""
 
@@ -78,6 +94,7 @@ def normalize_text(value):
 
 
 def normalize_company(value):
+
     value = normalize_text(value)
 
     for suffix in [
@@ -91,6 +108,7 @@ def normalize_company(value):
         "limited",
         "gmbh",
     ]:
+
         value = re.sub(
             rf"\b{suffix}\b",
             "",
@@ -105,10 +123,12 @@ def normalize_company(value):
 
 
 def normalize_title(value):
+
     return normalize_text(value)
 
 
 def normalize_city(value):
+
     if not value:
         return ""
 
@@ -126,6 +146,7 @@ def normalize_city(value):
 
 
 def deduplication_key(job):
+
     company = normalize_company(
         job.get("company")
     )
@@ -136,19 +157,176 @@ def deduplication_key(job):
 
     return f"{company}|{title}"
 
-    import_timestamp = datetime.now(
-        timezone.utc
-    ).isoformat()
 
-    db.collection(
-        "system"
-    ).document(
-        "status"
-    ).set({
+# ---------------------------------------------------------
+# FILTRES COMMUNS
+# ---------------------------------------------------------
 
-        "last_import_at": import_timestamp
+def is_internship(job):
 
-    }, merge=True)
+    title = normalize_text(
+        job.get("title") or ""
+    )
+
+    description = normalize_text(
+        job.get("description") or ""
+    )
+
+    contract_type = normalize_text(
+        job.get("contract_type")
+        or job.get("contract")
+        or ""
+    )
+
+    contract_time = normalize_text(
+        job.get("contract_time")
+        or ""
+    )
+
+    text = " ".join([
+        title,
+        description,
+        contract_type,
+        contract_time
+    ])
+
+    internship_keywords = [
+        "stage",
+        "stagiaire",
+        "internship",
+        "intern",
+        "alternance",
+        "alternant",
+        "apprentissage",
+        "apprenti",
+    ]
+
+    for keyword in internship_keywords:
+
+        if re.search(
+            rf"\b{re.escape(keyword)}\b",
+            text
+        ):
+
+            return True
+
+    return False
+
+
+def is_bas_rhin(location):
+
+    text = normalize_text(
+        location
+    )
+
+    if "bas rhin" in text:
+        return True
+
+    bas_rhin_locations = [
+        "strasbourg",
+        "obernai",
+        "schirmeck",
+        "molsheim",
+        "vendenheim",
+        "schiltigheim",
+        "bischheim",
+        "illkirch",
+        "lingolsheim",
+        "ostwald",
+        "hoenheim",
+        "haguenau",
+        "saverne",
+        "seltz",
+        "brumath",
+        "souffelweyersheim",
+        "mundolsheim",
+        "reichstett",
+        "la wantzenau",
+        "niederhausbergen",
+        "mittelhausbergen",
+        "oberhausbergen",
+        "entzheim",
+        "reichshoffen",
+        "weyersheim",
+        "eckbolsheim",
+        "holtzheim",
+        "hoerdt",
+        "lipsheim",
+        "oberbronn",
+        "selestat",
+        "sélestat",
+        "erstein",
+        "benfeld",
+        "marlenheim",
+        "wissembourg",
+        "bischwiller",
+        "soultz sous forets",
+        "soultz-sous-forets",
+        "marmoutier",
+        "wasselonne",
+        "muttersholtz",
+        "rosheim",
+        "barr",
+        "schirmeck",
+        "la broque",
+        "semeurs",
+        "truchtersheim",
+        "wiwersheim",
+        "geispolsheim",
+        "fegersheim",
+        "plobsheim",
+        "eschau",
+        "osthouse",
+        "saint pierre",
+        "duttlenheim",
+        "duppigheim",
+        "mommenheim",
+        "dettwiller",
+        "hochfelden",
+    ]
+
+    return any(
+        city in text
+        for city in bas_rhin_locations
+    )
+
+
+def is_linkedin_relevant(
+    title,
+    company,
+    description=""
+):
+
+    text = normalize_text(
+        f"{title} {company} {description}"
+    )
+
+    keywords = [
+        "supply chain",
+        "supply planning",
+        "demand planning",
+        "s&op",
+        "ibp",
+        "kinaxis",
+        "rapidresponse",
+        "maestro",
+        "inventory planner",
+        "material planner",
+        "approvisionneur",
+        "approvisionnement",
+        "planification",
+        "planning",
+        "ordonnancement",
+        "supplier performance",
+        "responsable sc",
+        "business analyst",
+    ]
+
+    return any(
+        keyword in text
+        for keyword in keywords
+    )
+
 
 # ---------------------------------------------------------
 # FRANCE TRAVAIL
@@ -288,49 +466,7 @@ def search_france_travail(
 
     return jobs
 
-def is_internship(job):
 
-    title = normalize_text(
-        job.get("title") or ""
-    )
-
-    description = normalize_text(
-        job.get("description") or ""
-    )
-
-    contract_type = normalize_text(
-        job.get("contract_type") or ""
-    )
-
-    contract_time = normalize_text(
-        job.get("contract_time") or ""
-    )
-
-    text = " ".join([
-        title,
-        description,
-        contract_type,
-        contract_time
-    ])
-
-    internship_keywords = [
-        "stage",
-        "stagiaire",
-        "internship",
-        "intern",
-        "alternance",
-        "alternant",
-        "apprentissage",
-        "apprenti",
-    ]
-
-    for keyword in internship_keywords:
-
-        if keyword in text:
-
-            return True
-
-    return False
 # ---------------------------------------------------------
 # ADZUNA
 # ---------------------------------------------------------
@@ -392,10 +528,6 @@ def search_adzuna(keywords):
 
     jobs = []
 
-    # -----------------------------------------------------
-    # FILTRE DE PERTINENCE
-    # -----------------------------------------------------
-
     keyword_words = normalize_text(
         keywords
     ).split()
@@ -426,8 +558,6 @@ def search_adzuna(keywords):
             f"{title} {description}"
         )
 
-        # Tous les mots du mot-clé doivent
-        # être présents dans l'offre
         is_relevant = all(
             word in text
             for word in keyword_words
@@ -509,6 +639,233 @@ def search_adzuna(keywords):
 
 
 # ---------------------------------------------------------
+# LINKEDIN
+# ---------------------------------------------------------
+
+def search_linkedin(keywords):
+
+    params = {
+        "keywords": keywords,
+        "location": (
+            "Strasbourg, Grand Est, France"
+        ),
+    }
+
+    try:
+
+        response = requests.get(
+            LINKEDIN_SEARCH_URL,
+            headers=LINKEDIN_HEADERS,
+            params=params,
+            timeout=30
+        )
+
+    except requests.RequestException as error:
+
+        print(
+            f"  ⚠️ LinkedIn : erreur "
+            f"de connexion pour '{keywords}' : "
+            f"{error}"
+        )
+
+        return []
+
+    if not response.ok:
+
+        print(
+            f"  ⚠️ LinkedIn : HTTP "
+            f"{response.status_code} "
+            f"pour '{keywords}'"
+        )
+
+        return []
+
+    soup = BeautifulSoup(
+        response.text,
+        "html.parser"
+    )
+
+    cards = soup.select(
+        "div.base-card"
+    )
+
+    print(
+        f"    → {len(cards)} "
+        f"offres LinkedIn trouvées"
+    )
+
+    jobs = []
+
+    for card in cards:
+
+        title_element = card.select_one(
+            ".base-search-card__title"
+        )
+
+        company_element = card.select_one(
+            ".base-search-card__subtitle"
+        )
+
+        location_element = card.select_one(
+            ".job-search-card__location"
+        )
+
+        link_element = card.select_one(
+            "a.base-card__full-link"
+        )
+
+        date_element = card.select_one(
+            "time"
+        )
+
+        description_element = card.select_one(
+            ".base-search-card__snippet"
+        )
+
+        title = (
+            title_element.get_text(
+                " ",
+                strip=True
+            )
+            if title_element
+            else ""
+        )
+
+        company = (
+            company_element.get_text(
+                " ",
+                strip=True
+            )
+            if company_element
+            else ""
+        )
+
+        location = (
+            location_element.get_text(
+                " ",
+                strip=True
+            )
+            if location_element
+            else ""
+        )
+
+        job_url = (
+            link_element.get("href")
+            if link_element
+            else ""
+        )
+
+        description = (
+            description_element.get_text(
+                " ",
+                strip=True
+            )
+            if description_element
+            else ""
+        )
+
+        published_at = ""
+
+        if date_element:
+
+            published_at = (
+                date_element.get("datetime")
+                or date_element.get_text(
+                    " ",
+                    strip=True
+                )
+            )
+
+        job = {
+
+            "source": "linkedin",
+
+            "source_id": "",
+
+            "title": title,
+
+            "description": description,
+
+            "company": company,
+
+            "location": location,
+
+            "city": location,
+
+            "department": "67",
+
+            "contract": "",
+
+            "contract_label": "",
+
+            "published_at": published_at,
+
+            "url": job_url,
+
+        }
+
+        if job_url:
+
+            match = re.search(
+                r"/jobs/view/[^/]+-(\d+)",
+                job_url
+            )
+
+            if match:
+
+                job["source_id"] = (
+                    match.group(1)
+                )
+
+        if not job["source_id"]:
+
+            print(
+                f"    ↳ URL LinkedIn "
+                f"non exploitable : "
+                f"{title}"
+            )
+
+            continue
+
+        if is_internship(job):
+
+            print(
+                f"    ↳ stage/alternance ignoré : "
+                f"{title}"
+            )
+
+            continue
+
+        if not is_bas_rhin(
+            location
+        ):
+
+            print(
+                f"    ↳ hors Bas-Rhin ignoré : "
+                f"{title} — {location}"
+            )
+
+            continue
+
+        if not is_linkedin_relevant(
+            title,
+            company,
+            description
+        ):
+
+            print(
+                f"    ↳ hors sujet ignoré : "
+                f"{title}"
+            )
+
+            continue
+
+        jobs.append(job)
+
+    return jobs
+
+
+# ---------------------------------------------------------
 # FIREBASE
 # ---------------------------------------------------------
 
@@ -531,6 +888,7 @@ def initialize_firebase():
         )
 
     return firestore.client()
+
 
 def save_jobs(
     db,
@@ -631,6 +989,65 @@ def save_jobs(
 
 
 # ---------------------------------------------------------
+# AJOUT / DEDUPLICATION
+# ---------------------------------------------------------
+
+def add_jobs_to_collection(
+    all_jobs,
+    jobs,
+    search_name,
+    keyword
+):
+
+    for job in jobs:
+
+        job["_searches"] = [
+            search_name
+        ]
+
+        job["_keywords"] = [
+            keyword
+        ]
+
+        key = deduplication_key(
+            job
+        )
+
+        if key in all_jobs:
+
+            print(
+                f"    ↳ doublon ignoré : "
+                f"{job.get('title')}"
+            )
+
+            existing = all_jobs[key]
+
+            existing["_searches"] = list(
+                set(
+                    existing.get(
+                        "_searches",
+                        []
+                    )
+                    + [search_name]
+                )
+            )
+
+            existing["_keywords"] = list(
+                set(
+                    existing.get(
+                        "_keywords",
+                        []
+                    )
+                    + [keyword]
+                )
+            )
+
+        else:
+
+            all_jobs[key] = job
+
+
+# ---------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------
 
@@ -692,53 +1109,12 @@ def main():
                 f"offres trouvées"
             )
 
-            for job in jobs:
-
-                job[
-                    "_searches"
-                ] = [name]
-
-                job[
-                    "_keywords"
-                ] = [keyword]
-
-                key = deduplication_key(
-                    job
-                )
-
-                if key not in all_jobs:
-
-                    all_jobs[key] = job
-
-                else:
-
-                    existing = (
-                        all_jobs[key]
-                    )
-
-                    existing[
-                        "_searches"
-                    ] = list(
-                        set(
-                            existing.get(
-                                "_searches",
-                                []
-                            )
-                            + [name]
-                        )
-                    )
-
-                    existing[
-                        "_keywords"
-                    ] = list(
-                        set(
-                            existing.get(
-                                "_keywords",
-                                []
-                            )
-                            + [keyword]
-                        )
-                    )
+            add_jobs_to_collection(
+                all_jobs,
+                jobs,
+                name,
+                keyword
+            )
 
     # -----------------------------------------------------
     # ADZUNA
@@ -777,58 +1153,56 @@ def main():
                 f"offres pertinentes"
             )
 
-            for job in jobs:
+            add_jobs_to_collection(
+                all_jobs,
+                jobs,
+                name,
+                keyword
+            )
 
-                job[
-                    "_searches"
-                ] = [name]
+    # -----------------------------------------------------
+    # LINKEDIN
+    # -----------------------------------------------------
 
-                job[
-                    "_keywords"
-                ] = [keyword]
+    print(
+        "\n=== LINKEDIN ==="
+    )
 
-                key = deduplication_key(
-                    job
-                )
+    for search in config[
+        "searches"
+    ]:
 
-                if key in all_jobs:
+        name = search[
+            "name"
+        ]
 
-                    print(
-                        f"    ↳ doublon ignoré : "
-                        f"{job.get('title')}"
-                    )
+        print(
+            f"\nRecherche : {name}"
+        )
 
-                    existing = (
-                        all_jobs[key]
-                    )
+        for keyword in search[
+            "keywords"
+        ]:
 
-                    existing[
-                        "_searches"
-                    ] = list(
-                        set(
-                            existing.get(
-                                "_searches",
-                                []
-                            )
-                            + [name]
-                        )
-                    )
+            print(
+                f"  Mot-clé : {keyword}"
+            )
 
-                    existing[
-                        "_keywords"
-                    ] = list(
-                        set(
-                            existing.get(
-                                "_keywords",
-                                []
-                            )
-                            + [keyword]
-                        )
-                    )
+            jobs = search_linkedin(
+                keyword
+            )
 
-                else:
+            print(
+                f"    → {len(jobs)} "
+                f"offres pertinentes"
+            )
 
-                    all_jobs[key] = job
+            add_jobs_to_collection(
+                all_jobs,
+                jobs,
+                name,
+                keyword
+            )
 
     # -----------------------------------------------------
     # SAUVEGARDE
@@ -849,7 +1223,9 @@ def main():
         "status"
     ).set(
         {
-            "last_import_at": import_timestamp
+            "last_import_at": (
+                import_timestamp
+            )
         },
         merge=True
     )
