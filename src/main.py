@@ -374,7 +374,7 @@ def search_adzuna(keywords):
         []
     ):
 
-                if is_internship(job):
+        if is_internship(job):
 
             print(
                 f"    ↳ stage/alternance ignoré : "
@@ -395,8 +395,8 @@ def search_adzuna(keywords):
             f"{title} {description}"
         )
 
-        # Tous les mots du mot-clé doivent apparaître
-        # dans le titre ou la description.
+        # Tous les mots du mot-clé doivent
+        # être présents dans l'offre
         is_relevant = all(
             word in text
             for word in keyword_words
@@ -472,7 +472,6 @@ def search_adzuna(keywords):
             "url": job.get(
                 "redirect_url"
             ),
-
         })
 
     return jobs
