@@ -135,6 +135,7 @@ def main():
     )
 
     print(f"HTTP {response.status_code}")
+
     print(
         f"Taille de la réponse : "
         f"{len(response.text)} caractères"
@@ -195,8 +196,8 @@ def main():
                     strip=True
                 )
             )
-        
-                title = (
+
+        title = (
             title_element.get_text(
                 " ",
                 strip=True
@@ -264,7 +265,7 @@ def main():
         )
 
     print(
-        f"\n================================"
+        "\n================================"
     )
 
     print(
@@ -272,7 +273,7 @@ def main():
     )
 
     print(
-        f"================================"
+        "================================"
     )
 
     for index, job in enumerate(
