@@ -7,6 +7,7 @@ import requests
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
+from datetime import datetime, timezone
 
 
 TOKEN_URL = (
@@ -134,6 +135,19 @@ def deduplication_key(job):
 
     return f"{company}|{title}"
 
+ import_timestamp = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    db.collection(
+        "system"
+    ).document(
+        "status"
+    ).set({
+
+        "last_import_at": import_timestamp
+
+    }, merge=True)
 
 # ---------------------------------------------------------
 # FRANCE TRAVAIL
@@ -516,7 +530,6 @@ def initialize_firebase():
         )
 
     return firestore.client()
-
 
 def save_jobs(
     db,
