@@ -1,3 +1,6 @@
+import re
+import unicodedata
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -8,7 +11,6 @@ URL = (
     "&location=Strasbourg%2C%20Grand%20Est%2C%20France"
 )
 
-
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -17,6 +19,100 @@ HEADERS = {
     ),
     "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
 }
+
+
+def normalize_text(text):
+    text = text or ""
+
+    text = unicodedata.normalize(
+        "NFD",
+        text
+    )
+
+    text = "".join(
+        char
+        for char in text
+        if unicodedata.category(char) != "Mn"
+    )
+
+    return text.lower().strip()
+
+
+def is_internship(title):
+    text = normalize_text(title)
+
+    keywords = [
+        "stage",
+        "stagiaire",
+        "internship",
+        "intern",
+        "alternance",
+        "alternant",
+        "apprentissage",
+        "apprenti",
+    ]
+
+    return any(
+        re.search(
+            rf"\b{re.escape(keyword)}\b",
+            text
+        )
+        for keyword in keywords
+    )
+
+
+def is_bas_rhin(location):
+    text = normalize_text(location)
+
+    bas_rhin_locations = [
+        "strasbourg",
+        "obernai",
+        "schirmeck",
+        "molsheim",
+        "vendenheim",
+        "schiltigheim",
+        "bischheim",
+        "illkirch",
+        "lingolsheim",
+        "ostwald",
+        "hoenheim",
+        "haguenau",
+        "saverne",
+        "seltz",
+        "brumath",
+        "souffelweyersheim",
+        "mundolsheim",
+        "reichstett",
+        "la wantzenau",
+        "niederhausbergen",
+        "mittelhausbergen",
+        "oberhausbergen",
+    ]
+
+    return any(
+        city in text
+        for city in bas_rhin_locations
+    )
+
+
+def is_relevant(title):
+    text = normalize_text(title)
+
+    keywords = [
+        "supply chain",
+        "supply planning",
+        "demand planning",
+        "s&op",
+        "ibp",
+        "kinaxis",
+        "rapidresponse",
+        "maestro",
+    ]
+
+    return any(
+        keyword in text
+        for keyword in keywords
+    )
 
 
 def main():
@@ -29,10 +125,7 @@ def main():
         timeout=30
     )
 
-    print(
-        f"HTTP {response.status_code}"
-    )
-
+    print(f"HTTP {response.status_code}")
     print(
         f"Taille de la réponse : "
         f"{len(response.text)} caractères"
@@ -50,20 +143,18 @@ def main():
         "html.parser"
     )
 
-    # Les résultats LinkedIn utilisent généralement
-    # la classe base-search-card.
     cards = soup.select(
         "div.base-card"
     )
 
     print(
-        f"\nCartes trouvées : {len(cards)}"
+        f"\nOffres LinkedIn trouvées : "
+        f"{len(cards)}"
     )
 
-    for index, card in enumerate(
-        cards[:10],
-        start=1
-    ):
+    jobs = []
+
+    for card in cards:
 
         title_element = card.select_one(
             ".base-search-card__title"
@@ -114,24 +205,75 @@ def main():
             else ""
         )
 
+        if is_internship(title):
+            print(
+                f"  ↳ stage/alternance ignoré : "
+                f"{title}"
+            )
+            continue
+
+        if not is_bas_rhin(location):
+            print(
+                f"  ↳ hors Bas-Rhin ignoré : "
+                f"{title} — {location}"
+            )
+            continue
+
+        if not is_relevant(title):
+            print(
+                f"  ↳ hors sujet ignoré : "
+                f"{title}"
+            )
+            continue
+
+        jobs.append(
+            {
+                "title": title,
+                "company": company,
+                "location": location,
+                "url": url,
+            }
+        )
+
+    print(
+        f"\n================================"
+    )
+
+    print(
+        f"OFFRES RETENUES : {len(jobs)}"
+    )
+
+    print(
+        f"================================"
+    )
+
+    for index, job in enumerate(
+        jobs,
+        start=1
+    ):
+
         print(
             f"\n--- Offre {index} ---"
         )
 
         print(
-            f"Titre      : {title}"
+            f"Titre      : "
+            f"{job['title']}"
         )
 
         print(
-            f"Entreprise : {company}"
+            f"Entreprise : "
+            f"{job['company']}"
         )
 
         print(
-            f"Lieu       : {location}"
+            f"Lieu       : "
+            f"{job['location']}"
         )
 
         print(
-            f"URL        : {url}"
+            f"URL        : "
+            f"{job['url']}"
         )
 
 
