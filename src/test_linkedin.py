@@ -259,6 +259,7 @@ def main():
                 "company": company,
                 "location": location,
                 "url": url,
+                "published_at": published_at,
             }
         )
 
@@ -296,6 +297,11 @@ def main():
         print(
             f"Lieu       : "
             f"{job['location']}"
+        )
+
+        print(
+            f"Publiée    : "
+            f"{job['published_at']}"
         )
 
         print(
