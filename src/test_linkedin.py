@@ -181,7 +181,22 @@ def main():
             "a.base-card__full-link"
         )
 
-        title = (
+        date_element = card.select_one(
+            "time"
+        )
+
+        published_at = ""
+
+        if date_element:
+            published_at = (
+                date_element.get("datetime")
+                or date_element.get_text(
+                    " ",
+                    strip=True
+                )
+            )
+        
+                title = (
             title_element.get_text(
                 " ",
                 strip=True
