@@ -132,11 +132,7 @@ def deduplication_key(job):
         job.get("title")
     )
 
-    city = normalize_city(
-        job.get("city")
-    )
-
-    return f"{company}|{title}|{city}"
+    return f"{company}|{title}"
 
 
 # ---------------------------------------------------------
@@ -277,6 +273,32 @@ def search_france_travail(
 
     return jobs
 
+def is_internship(job):
+    title = normalize_text(
+        job.get("title") or ""
+    )
+
+    description = normalize_text(
+        job.get("description") or ""
+    )
+
+    text = f"{title} {description}"
+
+    internship_keywords = [
+        "stage",
+        "stagiaire",
+        "internship",
+        "intern",
+        "alternance",
+        "alternant",
+        "apprentissage",
+        "apprenti",
+    ]
+
+    return any(
+        keyword in text
+        for keyword in internship_keywords
+    )
 
 # ---------------------------------------------------------
 # ADZUNA
@@ -351,6 +373,15 @@ def search_adzuna(keywords):
         "results",
         []
     ):
+
+                if is_internship(job):
+
+            print(
+                f"    ↳ stage/alternance ignoré : "
+                f"{job.get('title')}"
+            )
+
+            continue
 
         title = job.get(
             "title"
