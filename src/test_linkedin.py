@@ -95,8 +95,10 @@ def is_bas_rhin(location):
     )
 
 
-def is_relevant(title):
-    text = normalize_text(title)
+def is_relevant(title, company):
+    text = normalize_text(
+        f"{title} {company}"
+    )
 
     keywords = [
         "supply chain",
@@ -107,6 +109,13 @@ def is_relevant(title):
         "kinaxis",
         "rapidresponse",
         "maestro",
+        "inventory planner",
+        "material planner",
+        "approvisionneur",
+        "planification",
+        "planning",
+        "ordonnancement",
+        "supplier performance",
     ]
 
     return any(
@@ -219,7 +228,10 @@ def main():
             )
             continue
 
-        if not is_relevant(title):
+        if not is_relevant(
+            title,
+            company
+        ):
             print(
                 f"  ↳ hors sujet ignoré : "
                 f"{title}"
