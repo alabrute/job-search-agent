@@ -1,316 +1,342 @@
-import json
 import re
-import unicodedata
-from urllib.parse import urljoin
-
-import requests
-from bs4 import BeautifulSoup
+import json
+from playwright.sync_api import sync_playwright
 
 
-LEBONCOIN_URLS = {
+URLS = {
     "location": "https://www.leboncoin.fr/cl/locations/cp_strasbourg",
     "vente": "https://www.leboncoin.fr/cl/ventes_immobilieres/cp_strasbourg",
 }
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/153.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-}
 
-
-def normalize_text(text):
+def clean(text):
     if not text:
         return ""
-
-    text = unicodedata.normalize("NFKD", text)
-    text = "".join(
-        char for char in text
-        if not unicodedata.combining(char)
-    )
-
     return re.sub(r"\s+", " ", text).strip()
 
 
-def extract_number(text):
-    if not text:
+def parse_price(text):
+    match = re.search(r"([\d\s]+)\s*€", text)
+
+    if not match:
         return None
 
+    return int(
+        match.group(1)
+        .replace(" ", "")
+        .replace("\xa0", "")
+    )
+
+
+def parse_surface(text):
     match = re.search(
-        r"(\d[\d\s.,]*)",
-        text.replace("\xa0", " ")
+        r"(\d+(?:[.,]\d+)?)\s*m²",
+        text,
+        re.IGNORECASE
     )
 
     if not match:
         return None
 
-    value = match.group(1)
-    value = value.replace(" ", "").replace("\xa0", "")
-    value = value.replace(".", "").replace(",", ".")
-
-    try:
-        return float(value)
-    except ValueError:
-        return None
-
-
-def extract_image(card):
-    image = card.find("img")
-
-    if not image:
-        return None
-
-    return (
-        image.get("src")
-        or image.get("data-src")
-        or image.get("data-lazy-src")
+    return float(
+        match.group(1).replace(",", ".")
     )
 
 
-def extract_url(card):
-    link = card.find("a", href=True)
-
-    if not link:
-        return None
-
-    return urljoin(
-        "https://www.leboncoin.fr",
-        link["href"]
-    )
-
-
-def parse_card(card, search_type):
-    text = normalize_text(card.get_text(" ", strip=True))
-
-    if not text:
-        return None
-
-    # Prix
-    price_match = re.search(
-        r"([\d\s\u00a0]+)\s*€",
-        text
-    )
-
-    price = None
-
-    if price_match:
-        price = extract_number(price_match.group(1))
-
-    # Surface
-    surface_match = re.search(
-        r"(\d+(?:[.,]\d+)?)\s*m²",
-        text
-    )
-
-    surface = None
-
-    if surface_match:
-        surface = float(
-            surface_match.group(1).replace(",", ".")
-        )
-
-    # Nombre de pièces
-    rooms_match = re.search(
+def parse_rooms(text):
+    match = re.search(
         r"(\d+)\s*pièces?",
         text,
         re.IGNORECASE
     )
 
-    rooms = None
+    if not match:
+        return None
 
-    if rooms_match:
-        rooms = int(rooms_match.group(1))
+    return int(match.group(1))
 
-    # DPE
-    dpe_match = re.search(
-        r"Classe énergie\s*([A-G])",
+
+def parse_dpe(text):
+    match = re.search(
+        r"(?:DPE|Classe énergie|énergie).*?\b([A-G])\b",
         text,
         re.IGNORECASE
     )
 
-    dpe = None
+    if not match:
+        return None
 
-    if dpe_match:
-        dpe = dpe_match.group(1).upper()
+    return match.group(1).upper()
 
-    # Type de bien
-    property_type = None
 
-    if re.search(r"\bMaison\b", text, re.IGNORECASE):
-        property_type = "Maison"
-    elif re.search(r"\bAppartement\b", text, re.IGNORECASE):
-        property_type = "Appartement"
+def parse_property_type(text):
+    if re.search(r"\bmaison\b", text, re.IGNORECASE):
+        return "Maison"
 
-    # Localisation : on cherche un code postal + texte
-    location_match = re.search(
-        r"\b(67\d{3})\s+(.+?)(?=\s+(?:aujourd'hui|hier|\d{1,2}/\d{1,2}/\d{4})|$)",
-        text,
-        re.IGNORECASE
+    if re.search(r"\bappartement\b", text, re.IGNORECASE):
+        return "Appartement"
+
+    return None
+
+
+def extract_card_data(card, search_type):
+    text = clean(
+        card.inner_text(timeout=3000)
     )
 
-    location = None
+    if not text:
+        return None
 
-    if location_match:
-        location = (
-            f"{location_match.group(1)} "
-            f"{location_match.group(2)}"
+    links = card.locator("a")
+
+    url = None
+
+    for i in range(min(links.count(), 10)):
+        href = links.nth(i).get_attribute("href")
+
+        if href and "/ad/" in href:
+            if href.startswith("/"):
+                url = "https://www.leboncoin.fr" + href
+            else:
+                url = href
+            break
+
+    if not url:
+        return None
+
+    image_url = None
+
+    images = card.locator("img")
+
+    if images.count() > 0:
+        image_url = (
+            images.nth(0).get_attribute("src")
+            or images.nth(0).get_attribute("data-src")
         )
 
     return {
         "type": search_type,
-        "title": f"{property_type or 'Bien'}"
-                 f"{f' · {rooms} pièces' if rooms else ''}"
-                 f"{f' · {surface:g}m²' if surface else ''}",
-        "price": price,
-        "surface": surface,
-        "rooms": rooms,
-        "dpe": dpe,
-        "property_type": property_type,
-        "location": location,
-        "image_url": extract_image(card),
-        "url": extract_url(card),
+        "price": parse_price(text),
+        "surface": parse_surface(text),
+        "rooms": parse_rooms(text),
+        "dpe": parse_dpe(text),
+        "property_type": parse_property_type(text),
+        "image_url": image_url,
+        "url": url,
         "raw_text": text,
     }
 
 
-def search_leboncoin(search_type):
-    url = LEBONCOIN_URLS[search_type]
+def search(search_type, url, page):
 
     print()
     print("=" * 80)
-    print(f"Recherche : {search_type.upper()}")
+    print(f"RECHERCHE : {search_type.upper()}")
     print("=" * 80)
-    print(url)
 
-    response = requests.get(
+    print(f"URL : {url}")
+
+    response = page.goto(
         url,
-        headers=HEADERS,
-        timeout=30
+        wait_until="domcontentloaded",
+        timeout=60000
     )
 
-    print(f"HTTP {response.status_code}")
-    print(f"Taille de la réponse : {len(response.text)} caractères")
+    print(f"HTTP : {response.status if response else 'inconnu'}")
 
-    response.raise_for_status()
-
-    soup = BeautifulSoup(
-        response.text,
-        "html.parser"
-    )
-
-    # Les annonces Leboncoin utilisent actuellement des cartes
-    # avec des liens vers /ad/
-    cards = []
-
-    for link in soup.find_all("a", href=True):
-        href = link.get("href", "")
-
-        if "/ad/" in href:
-            card = link
-
-            # On remonte jusqu'à un conteneur raisonnable
-            for _ in range(5):
-                if card.parent:
-                    card = card.parent
-
-            cards.append(card)
-
-    print(f"Éléments d'annonces détectés : {len(cards)}")
-
-    results = []
-
-    seen_urls = set()
-
-    for card in cards:
-        job = parse_card(
-            card,
-            search_type
-        )
-
-        if not job:
-            continue
-
-        if not job["url"]:
-            continue
-
-        if job["url"] in seen_urls:
-            continue
-
-        seen_urls.add(job["url"])
-
-        # Premier filtre
-        if job["price"] is not None:
-            if search_type == "location" and job["price"] > 2000:
-                continue
-
-            if search_type == "vente" and job["price"] > 500000:
-                continue
-
-        if job["rooms"] is not None and job["rooms"] < 4:
-            continue
-
-        if job["surface"] is not None and job["surface"] < 90:
-            continue
-
-        if job["dpe"] and job["dpe"] > "E":
-            continue
-
-        results.append(job)
+    page.wait_for_timeout(5000)
 
     print(
-        f"Annonces après filtrage : {len(results)}"
+        f"Titre page : {page.title()}"
     )
+
+    print(
+        f"URL finale : {page.url}"
+    )
+
+    # Sauvegarde de la page pour diagnostic
+    page.screenshot(
+        path=f"leboncoin_{search_type}.png",
+        full_page=True
+    )
+
+    # Recherche de liens vers les annonces
+    ad_links = page.locator(
+        'a[href*="/ad/"]'
+    )
+
+    count = ad_links.count()
+
+    print(
+        f"Liens d'annonces détectés : {count}"
+    )
+
+    results = []
+    seen = set()
+
+    for i in range(count):
+
+        link = ad_links.nth(i)
+
+        try:
+            href = link.get_attribute("href")
+        except Exception:
+            continue
+
+        if not href:
+            continue
+
+        if href.startswith("/"):
+            href = "https://www.leboncoin.fr" + href
+
+        if href in seen:
+            continue
+
+        seen.add(href)
+
+        # On remonte dans l'arbre DOM pour récupérer
+        # le conteneur de l'annonce.
+        card = link
+
+        for _ in range(6):
+            try:
+                parent = card.locator("..")
+
+                if parent.count() == 0:
+                    break
+
+                card = parent
+
+            except Exception:
+                break
+
+        try:
+            data = extract_card_data(
+                card,
+                search_type
+            )
+        except Exception:
+            continue
+
+        if not data:
+            continue
+
+        # Filtres
+        if data["price"] is not None:
+
+            if search_type == "location":
+                if data["price"] > 2000:
+                    continue
+
+            if search_type == "vente":
+                if data["price"] > 500000:
+                    continue
+
+        if (
+            data["rooms"] is not None
+            and data["rooms"] < 4
+        ):
+            continue
+
+        if (
+            data["surface"] is not None
+            and data["surface"] < 90
+        ):
+            continue
+
+        if (
+            data["dpe"]
+            and data["dpe"] > "E"
+        ):
+            continue
+
+        results.append(data)
 
     return results
 
 
 def main():
+
     all_results = []
 
-    for search_type in LEBONCOIN_URLS:
-        results = search_leboncoin(search_type)
-        all_results.extend(results)
+    with sync_playwright() as p:
+
+        browser = p.chromium.launch(
+            headless=True
+        )
+
+        page = browser.new_page(
+            viewport={
+                "width": 1920,
+                "height": 1080
+            },
+            locale="fr-FR"
+        )
+
+        for search_type, url in URLS.items():
+
+            try:
+                results = search(
+                    search_type,
+                    url,
+                    page
+                )
+
+                print(
+                    f"Annonces retenues : {len(results)}"
+                )
+
+                all_results.extend(results)
+
+            except Exception as error:
+
+                print()
+                print(
+                    f"ERREUR {search_type} : {error}"
+                )
+
+        browser.close()
 
     print()
     print("=" * 80)
     print("RÉSULTATS")
     print("=" * 80)
 
-    for index, property_data in enumerate(
+    for i, item in enumerate(
         all_results,
         start=1
     ):
+
         print()
-        print(f"--- {index} ---")
+        print(f"--- ANNONCE {i} ---")
         print(
-            f"Type        : {property_data['type']}"
+            f"Type       : {item['type']}"
         )
         print(
-            f"Type bien   : {property_data['property_type']}"
+            f"Bien       : {item['property_type']}"
         )
         print(
-            f"Prix        : {property_data['price']}"
+            f"Prix       : {item['price']} €"
         )
         print(
-            f"Surface     : {property_data['surface']} m²"
+            f"Surface    : {item['surface']} m²"
         )
         print(
-            f"Pièces      : {property_data['rooms']}"
+            f"Pièces     : {item['rooms']}"
         )
         print(
-            f"DPE         : {property_data['dpe']}"
+            f"DPE        : {item['dpe']}"
         )
         print(
-            f"Localisation: {property_data['location']}"
+            f"Image      : {item['image_url']}"
         )
         print(
-            f"Image       : {property_data['image_url']}"
+            f"URL        : {item['url']}"
         )
+
         print(
-            f"URL         : {property_data['url']}"
+            f"Texte      : "
+            f"{item['raw_text'][:300]}"
         )
 
     with open(
@@ -318,6 +344,7 @@ def main():
         "w",
         encoding="utf-8"
     ) as file:
+
         json.dump(
             all_results,
             file,
@@ -326,7 +353,14 @@ def main():
         )
 
     print()
-    print("Résultats enregistrés dans leboncoin_test.json")
+    print(
+        f"Total : {len(all_results)} annonces"
+    )
+
+    print(
+        "Résultats enregistrés dans "
+        "leboncoin_test.json"
+    )
 
 
 if __name__ == "__main__":
