@@ -12,6 +12,7 @@ URLS = {
 def clean(text):
     if not text:
         return ""
+
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -80,9 +81,12 @@ def parse_property_type(text):
 
 
 def extract_card_data(card, search_type):
-    text = clean(
-        card.inner_text(timeout=3000)
-    )
+    try:
+        text = clean(
+            card.inner_text(timeout=3000)
+        )
+    except Exception:
+        return None
 
     if not text:
         return None
@@ -91,14 +95,25 @@ def extract_card_data(card, search_type):
 
     url = None
 
-    for i in range(min(links.count(), 10)):
-        href = links.nth(i).get_attribute("href")
+    try:
+        link_count = links.count()
+    except Exception:
+        link_count = 0
+
+    for i in range(min(link_count, 10)):
+
+        try:
+            href = links.nth(i).get_attribute("href")
+        except Exception:
+            continue
 
         if href and "/ad/" in href:
+
             if href.startswith("/"):
                 url = "https://www.leboncoin.fr" + href
             else:
                 url = href
+
             break
 
     if not url:
@@ -106,13 +121,17 @@ def extract_card_data(card, search_type):
 
     image_url = None
 
-    images = card.locator("img")
+    try:
+        images = card.locator("img")
 
-    if images.count() > 0:
-        image_url = (
-            images.nth(0).get_attribute("src")
-            or images.nth(0).get_attribute("data-src")
-        )
+        if images.count() > 0:
+            image_url = (
+                images.nth(0).get_attribute("src")
+                or images.nth(0).get_attribute("data-src")
+            )
+
+    except Exception:
+        pass
 
     return {
         "type": search_type,
@@ -136,13 +155,24 @@ def search(search_type, url, page):
 
     print(f"URL : {url}")
 
-    response = page.goto(
-        url,
-        wait_until="domcontentloaded",
-        timeout=60000
-    )
+    try:
+        response = page.goto(
+            url,
+            wait_until="domcontentloaded",
+            timeout=60000
+        )
 
-    print(f"HTTP : {response.status if response else 'inconnu'}")
+        print(
+            f"HTTP : {response.status if response else 'inconnu'}"
+        )
+
+    except Exception as error:
+
+        print(
+            f"ERREUR lors du chargement : {error}"
+        )
+
+        return []
 
     page.wait_for_timeout(5000)
 
@@ -155,24 +185,32 @@ def search(search_type, url, page):
     )
 
     # Sauvegarde de la page pour diagnostic
-    page.screenshot(
-        path=f"leboncoin_{search_type}.png",
-        full_page=True
-    )
+    try:
+        page.screenshot(
+            path=f"leboncoin_{search_type}.png",
+            full_page=True
+        )
+    except Exception:
+        pass
 
-    # Recherche de liens vers les annonces
+    # Recherche des liens vers les annonces
     ad_links = page.locator(
         'a[href*="/ad/"]'
     )
 
-    count = ad_links.count()
+    try:
+        count = ad_links.count()
+    except Exception:
+        count = 0
 
     print(
         f"Liens d'annonces détectés : {count}"
     )
 
     results = []
-    seen = set()
+
+    # URLs déjà rencontrées
+    seen_urls = set()
 
     for i in range(count):
 
@@ -189,16 +227,18 @@ def search(search_type, url, page):
         if href.startswith("/"):
             href = "https://www.leboncoin.fr" + href
 
-        if href in seen:
+        # Premier niveau de dédoublonnage
+        if href in seen_urls:
             continue
 
-        seen.add(href)
+        seen_urls.add(href)
 
         # On remonte dans l'arbre DOM pour récupérer
         # le conteneur de l'annonce.
         card = link
 
         for _ in range(6):
+
             try:
                 parent = card.locator("..")
 
@@ -215,22 +255,30 @@ def search(search_type, url, page):
                 card,
                 search_type
             )
+
         except Exception:
             continue
 
         if not data:
             continue
 
-        # Filtres
+        # ------------------------------------------------------------------
+        # FILTRE PRIX
+        # ------------------------------------------------------------------
+
         if data["price"] is not None:
 
             if search_type == "location":
                 if data["price"] > 2000:
                     continue
 
-            if search_type == "vente":
+            elif search_type == "vente":
                 if data["price"] > 500000:
                     continue
+
+        # ------------------------------------------------------------------
+        # FILTRE PIÈCES
+        # ------------------------------------------------------------------
 
         if (
             data["rooms"] is not None
@@ -238,11 +286,19 @@ def search(search_type, url, page):
         ):
             continue
 
+        # ------------------------------------------------------------------
+        # FILTRE SURFACE
+        # ------------------------------------------------------------------
+
         if (
             data["surface"] is not None
             and data["surface"] < 90
         ):
             continue
+
+        # ------------------------------------------------------------------
+        # FILTRE DPE
+        # ------------------------------------------------------------------
 
         if (
             data["dpe"]
@@ -250,10 +306,21 @@ def search(search_type, url, page):
         ):
             continue
 
-        if any(item["url"] == data["url"] for item in results):
+        # ------------------------------------------------------------------
+        # SECOND DÉDOUBLONNAGE
+        # ------------------------------------------------------------------
+
+        if any(
+            item["url"] == data["url"]
+            for item in results
+        ):
             continue
 
-    results.append(data)
+        # ------------------------------------------------------------------
+        # AJOUT
+        # ------------------------------------------------------------------
+
+        results.append(data)
 
     return results
 
@@ -279,6 +346,7 @@ def main():
         for search_type, url in URLS.items():
 
             try:
+
                 results = search(
                     search_type,
                     url,
@@ -312,27 +380,35 @@ def main():
 
         print()
         print(f"--- ANNONCE {i} ---")
+
         print(
             f"Type       : {item['type']}"
         )
+
         print(
             f"Bien       : {item['property_type']}"
         )
+
         print(
             f"Prix       : {item['price']} €"
         )
+
         print(
             f"Surface    : {item['surface']} m²"
         )
+
         print(
             f"Pièces     : {item['rooms']}"
         )
+
         print(
             f"DPE        : {item['dpe']}"
         )
+
         print(
             f"Image      : {item['image_url']}"
         )
+
         print(
             f"URL        : {item['url']}"
         )
