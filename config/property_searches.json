@@ -1,0 +1,46 @@
+{
+  "searches": [
+    {
+      "name": "Location",
+      "type": "location",
+      "locations": [
+        "Strasbourg",
+        "Mundolsheim",
+        "Souffelweyersheim",
+        "Reichstett",
+        "La Wantzenau",
+        "Niederhausbergen",
+        "Mittelhausbergen",
+        "Oberhausbergen"
+      ],
+      "min_rooms": 4,
+      "min_surface": 85,
+      "max_price": 2000,
+      "max_dpe": "E",
+      "property_types": [
+        "Maison"
+      ]
+    },
+    {
+      "name": "Vente",
+      "type": "vente",
+      "locations": [
+        "Strasbourg",
+        "Mundolsheim",
+        "Souffelweyersheim",
+        "Reichstett",
+        "La Wantzenau",
+        "Niederhausbergen",
+        "Mittelhausbergen",
+        "Oberhausbergen"
+      ],
+      "min_rooms": 4,
+      "min_surface": 85,
+      "max_price": 500000,
+      "max_dpe": "F",
+      "property_types": [
+        "Maison"
+      ]
+    }
+  ]
+}
