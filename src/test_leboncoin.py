@@ -250,7 +250,10 @@ def search(search_type, url, page):
         ):
             continue
 
-        results.append(data)
+        if any(item["url"] == data["url"] for item in results):
+            continue
+
+    results.append(data)
 
     return results
 
