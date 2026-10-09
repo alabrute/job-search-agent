@@ -8,8 +8,6 @@ URLS = {
 }
 
 
-
-
 def clean(text):
     if not text:
         return ""
@@ -163,7 +161,6 @@ def search(search_type, url, page):
             timeout=60000
         )
 
-        ```python
         print(
             f"HTTP : {response.status if response else 'inconnu'}"
         )
