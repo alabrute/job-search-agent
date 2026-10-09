@@ -4,9 +4,10 @@ from playwright.sync_api import sync_playwright
 
 
 URLS = {
-    "location": "https://www.leboncoin.fr/cl/locations/cp_strasbourg",
-    "vente": "https://www.leboncoin.fr/cl/ventes_immobilieres/cp_strasbourg",
+    "vente": "https://www.leboncoin.fr/cl/ventes_immobilieres/cp_strasbourg?utm_source=chatgpt.com",
 }
+
+
 
 
 def clean(text):
