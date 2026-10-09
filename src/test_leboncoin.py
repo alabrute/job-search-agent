@@ -163,9 +163,32 @@ def search(search_type, url, page):
             timeout=60000
         )
 
+        ```python
         print(
             f"HTTP : {response.status if response else 'inconnu'}"
         )
+
+        # Diagnostic de la réponse HTTP
+        if response:
+            print(
+                f"URL finale : {page.url}"
+            )
+
+            print(
+                f"Content-Type : "
+                f"{response.headers.get('content-type')}"
+            )
+
+            print(
+                f"Server : "
+                f"{response.headers.get('server')}"
+            )
+
+            print(
+                f"En-têtes de sécurité : "
+                f"{ {k: v for k, v in response.headers.items() if 'challenge' in k.lower() or 'captcha' in k.lower()} }"
+            )
+
 
     except Exception as error:
 
@@ -176,6 +199,15 @@ def search(search_type, url, page):
         return []
 
     page.wait_for_timeout(5000)
+
+    # Diagnostic du contenu reçu
+    try:
+        content = page.locator("body").inner_text(timeout=5000)
+        print("Début du contenu reçu :")
+        print(content[:1000])
+    except Exception as error:
+        print(f"Impossible de lire le contenu : {error}")
+
 
     print(
         f"Titre page : {page.title()}"
